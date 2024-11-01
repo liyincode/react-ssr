@@ -3,7 +3,6 @@ import React, {useState} from 'react';
 export async function getServerSideProps() {
     // 获取数据
     const res = await fetch('https://api.thecatapi.com/v1/images/search')
-    console.log('res', res)
     const cat = await res.json()
     // 通过 props 将数据传给 page
     return { props: { cat} }
