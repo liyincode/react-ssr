@@ -1,24 +1,32 @@
 import express from 'express'
 import React from 'react'
 import { renderToString } from 'react-dom/server'
-import App from './pages/index'
+import { join } from 'path'
+import { readdirSync } from 'fs'
 
 const app = express()
 app.use(express.static('public'));
-const content = renderToString(<App />)
 
-app.get('/', async (req, res) => {
-    const file = await import('./pages/index.js')
+const pagesDir = join(process.cwd(), '/pages')
+const pages = readdirSync(pagesDir).map(page => page.split('.')[0])
 
-    let propsObj = {}
-    if (file.getServerSideProps) {
-        const { props } = await file.getServerSideProps({ query: req.query })
-        propsObj = props
-    }
+app.get(/.*$/, async (req, res) => {
+    const path = req.path.split('/')[1]
+    const page = path ? path : 'index'
 
-    const Component = file.default;
-    const content = renderToString(<Component {...propsObj} />)
-    res.send(`
+    if (pages.includes(page)) {
+       const file = await import(`./pages/${page}.js`)
+       const Component = file.default
+
+         let propsObj = {}
+
+        if (file.getServerSideProps) {
+            const { props } = await file.getServerSideProps({ query: req.query })
+            propsObj = props
+        }
+
+        const content = renderToString(<Component {...propsObj} />)
+        res.send(`
         <html>
             <head>
                 <title>Tiny React SSR</title>
@@ -26,12 +34,16 @@ app.get('/', async (req, res) => {
             <body>
                 <div id="root">${content}</div>
                 <script>
-                      window.__DATA__ = ${JSON.stringify(propsObj)}
+                      window.__DATA__ = ${JSON.stringify({ props: propsObj, page })}
                 </script>
                 <script src="/client.bundle.js"></script>
             </body>
         </html>
     `)
+
+    } else {
+        res.send('404')
+    }
 })
 
 app.listen(3000, () => console.log('listening on port 3000!'))
